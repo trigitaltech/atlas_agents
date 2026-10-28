@@ -1,0 +1,16 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.34,<1
+pydantic-settings>=2.8,<3
+SQLAlchemy>=2.0.38,<2.1
+alembic>=1.15,<2
+psycopg[binary]>=3.2,<4
+redis>=5,<7
+celery>=5.4,<6
+httpx>=0.28,<0.29
+beautifulsoup4>=4.13,<5
+playwright>=1.51,<2
+langgraph>=1,<2
+pytest>=8,<10
+pytest-asyncio>=0.25,<2
+opentelemetry-api>=1,<2
+idna>=3,<4

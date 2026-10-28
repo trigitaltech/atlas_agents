@@ -1,0 +1,66 @@
+name: atlas-agent-platform
+x-backend: &backend
+  build: ./backend
+  env_file: .env
+  environment:
+    DATABASE_URL: postgresql+psycopg://atlas:${POSTGRES_PASSWORD:-atlas_local}@postgres:5432/atlas
+    REDIS_URL: redis://redis:6379/0
+    QUEUE_EAGER: "false"
+  init: true
+  restart: unless-stopped
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-atlas_local}
+      POSTGRES_DB: atlas
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U atlas -d atlas"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, "yes"]
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    restart: unless-stopped
+  migrate:
+    <<: *backend
+    command: [alembic, upgrade, head]
+    restart: "no"
+    depends_on:
+      postgres: {condition: service_healthy}
+  api:
+    <<: *backend
+    ports: ["127.0.0.1:8000:8000"]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+  worker:
+    <<: *backend
+    command: [celery, -A, app.workers.tasks.celery, worker, --loglevel=INFO, --concurrency=2]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+  frontend:
+    build: ./frontend
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      api: {condition: service_healthy}
+    restart: unless-stopped
+volumes:
+  postgres-data:
+  redis-data:
